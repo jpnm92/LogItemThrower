@@ -1,0 +1,9 @@
+{
+  "name": "LogLauncher",
+  "version_number": "1.0.0",
+  "website_url": "",
+  "description": "Launch tree logs and item stacks with a hotkey. Two-stage throw — grab with T, launch with T.",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-5.4.2333"
+  ]
+}
