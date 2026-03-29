@@ -36,11 +36,11 @@ then press T again to send it flying.
 INSTALLATION
 ------------
 1. Install BepInEx for Valheim (BepInExPack_Valheim)
-2. Drop LogLauncher.dll into BepInEx/plugins/
+2. Drop LogItemThrower.dll into BepInEx/plugins/
 
 CONFIGURATION
 -------------
-All settings are in BepInEx/config/com.custom.loglauncher.cfg
+All settings are in BepInEx/config/com.custom.LogItemThrower.cfg
 or use the BepInEx Configuration Manager in-game (F1).
 
 LaunchHotkey   - Default: T

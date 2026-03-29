@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
 	<PropertyGroup>
 		<TargetFramework>netstandard2.1</TargetFramework>
-		<AssemblyName>LogLauncher</AssemblyName>
+		<AssemblyName>LogItemThrower</AssemblyName>
 		<Description>Launch logs and item stacks with a hotkey!</Description>
 		<Version>1.0.0</Version>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -10,10 +9,22 @@
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
 		<MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
-
 		<R2ProfileDir>C:\Users\JPNM9\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Default\BepInEx\plugins\</R2ProfileDir>
-		<ModFolderName>JPNM9-LogLauncher</ModFolderName>
+		<ModFolderName>JPNM9-LogItemThrower</ModFolderName>
 	</PropertyGroup>
+	<ItemGroup>
+		<None Remove="icons\throwing.png" />
+	</ItemGroup>
+	<ItemGroup>
+	  <EmbeddedResource Include="icons\throwing.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.18.2">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	</ItemGroup>
 
 	<ItemGroup>
 		<Reference Include="0Harmony">
@@ -43,6 +54,9 @@
 		<Reference Include="UnityEngine.CoreModule">
 			<HintPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
 		</Reference>
+		<Reference Include="UnityEngine.IMGUIModule">
+		  <HintPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+		</Reference>
 		<Reference Include="UnityEngine.InputLegacyModule">
 			<HintPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
 		</Reference>
@@ -52,15 +66,35 @@
 		<Reference Include="UnityEngine.AnimationModule">
 			<HintPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
 		</Reference>
+
+		<Reference Include="SkillManager">
+			<HintPath>libs\SkillManager.dll</HintPath>
+		</Reference>
+		<Reference Include="ServerSync">
+			<HintPath>libs\ServerSync.dll</HintPath>
+		</Reference>
+		<Reference Include="UnityEngine.TextRenderingModule">
+		  <HintPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
-	<Target Name="InstallToR2" AfterTargets="Build">
+	<Target Name="ILRepacker" AfterTargets="Build">
+		<Message Importance="High" Text="Embedding SkillManager and ServerSync into LogItemThrower.dll..." />
+		<ItemGroup>
+			<InputAssemblies Include="$(TargetPath)" />
+			<InputAssemblies Include="$(ProjectDir)libs\SkillManager.dll" />
+			<InputAssemblies Include="$(ProjectDir)libs\ServerSync.dll" />
+		</ItemGroup>
+		<ILRepack Parallel="true" DebugInfo="true" Internalize="true" InputAssemblies="@(InputAssemblies)" OutputFile="$(TargetPath)" TargetKind="SameAsPrimaryAssembly" LibraryPath="$(OutputPath)" />
+	</Target>
+
+	<Target Name="InstallToR2" AfterTargets="ILRepacker">
 		<Message Importance="High" Text="Deploying DLL to r2modman subfolder..." />
 		<MakeDir Directories="$(R2ProfileDir)$(ModFolderName)" />
 		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(R2ProfileDir)$(ModFolderName)" />
 	</Target>
 
-	<Target Name="PackageMod" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+	<Target Name="PackageMod" AfterTargets="ILRepacker" Condition="'$(Configuration)' == 'Release'">
 		<Message Importance="High" Text="Zipping Thunderstore and Nexus releases..." />
 		<MakeDir Directories="$(TargetDir)ThunderstoreStage" />
 		<MakeDir Directories="$(TargetDir)NexusStage" />
@@ -74,12 +108,16 @@
 		<Copy SourceFiles="$(ProjectDir)PackagingAssets\README.txt" DestinationFolder="$(TargetDir)NexusStage" />
 		<Copy SourceFiles="$(ProjectDir)PackagingAssets\CHANGELOG.md" DestinationFolder="$(TargetDir)NexusStage" />
 		<MakeDir Directories="$(ProjectDir)Releases" />
-		<ZipDirectory SourceDirectory="$(TargetDir)ThunderstoreStage" DestinationFile="$(ProjectDir)Releases\LogLauncher_Thunderstore.zip" Overwrite="true" />
-		<ZipDirectory SourceDirectory="$(TargetDir)NexusStage" DestinationFile="$(ProjectDir)Releases\LogLauncher_Nexus.zip" Overwrite="true" />
+		<ZipDirectory SourceDirectory="$(TargetDir)ThunderstoreStage" DestinationFile="$(ProjectDir)Releases\LogItemThrower_Thunderstore.zip" Overwrite="true" />
+		<ZipDirectory SourceDirectory="$(TargetDir)NexusStage" DestinationFile="$(ProjectDir)Releases\LogItemThrower_Nexus.zip" Overwrite="true" />
 		<RemoveDir Directories="$(TargetDir)ThunderstoreStage" />
 		<RemoveDir Directories="$(TargetDir)NexusStage" />
 		<Message Importance="High" Text="Releases successfully built!" />
 	</Target>
 
-	<ProjectExtensions><VisualStudio><UserProperties packaging_x0020_assets_4manifest_1json__JsonSchema="" /></VisualStudio></ProjectExtensions>
+	<ProjectExtensions>
+		<VisualStudio>
+			<UserProperties packaging_x0020_assets_4manifest_1json__JsonSchema="" />
+		</VisualStudio>
+	</ProjectExtensions>
 </Project>
