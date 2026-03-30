@@ -1,6 +1,7 @@
 ﻿using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using HarmonyLib;
 using SkillManager;
 using System;
 using System.Collections;
@@ -17,18 +18,19 @@ namespace LogItemThrower
         // Hotkeys
         public static ConfigEntry<KeyboardShortcut> LaunchHotkey;
         public static ConfigEntry<KeyboardShortcut> RotationHotkey;
+        public static ConfigEntry<KeyboardShortcut> DropHotkey;
 
         // Stamina Costs (%)
         public static ConfigEntry<float> PctGrab, PctThrow, PctDrainStill, PctDrainMove;
 
         // Physics & Range
-        public static ConfigEntry<float> LogForce, ItemForce;
-        public static ConfigEntry<float> LogPushForce, ItemPushForce;
+        public static ConfigEntry<float> LogForce, ItemForce, LogHoldRotationX, LogHoldRotationZ;
+        public static ConfigEntry<float> LogPushForce, LogAoeRadius;
         public static ConfigEntry<float> GrabRange;
 
         // Damage & Modifiers
         public static ConfigEntry<float> StrengthCoefficient, SkillForceBonus;
-        public static ConfigEntry<float> LogDamageCoefficient, ItemDamageCoefficient;
+        public static ConfigEntry<float> LogDamageCoefficient, LogAoeDamageMultiplier;
 
 
         // INTERNAL REFERENCES & REFLECTION (Private Static)
@@ -56,6 +58,7 @@ namespace LogItemThrower
         // UI & Media
         private bool _showingGrabHint = false;
         private GameObject _throwSoundPrefab;
+        private readonly Harmony _harmony = new Harmony("com.custom.logitemthrower");
 
         void Awake()
         {
@@ -66,25 +69,29 @@ namespace LogItemThrower
             SetupConfig();
             SetupSkill();
             Logger.LogInfo("Log/Item Thrower: Unity 6 Compatibility Mode Loaded.");
+            _harmony.PatchAll();
         }
         
         private void SetupConfig()
         {
             LaunchHotkey = Config.Bind("General", "LaunchHotkey", new KeyboardShortcut(KeyCode.T), "Grab/Launch.");
+            DropHotkey = Config.Bind("General", "DropHotkey", new KeyboardShortcut(KeyCode.G), "Drop held object.");
             LogForce = Config.Bind("Physics", "LogForce", 2000f, "Force for logs.");
             ItemForce = Config.Bind("Physics", "ItemForce", 150f, "Force for items.");
             StrengthCoefficient = Config.Bind("Physics", "StrengthCoefficient", 0.002f, "Force bonus per Strength point (e.g. 0.002 = +0.2% per point).");
             SkillForceBonus = Config.Bind("Physics", "SkillForceBonus", 0.25f, "Max force bonus from Throwing skill at level 100 (e.g. 0.25 = +25%).");
             LogDamageCoefficient = Config.Bind("Physics", "LogDamageCoefficient", 0.01f, "Damage dealt per unit of force for logs.");
             LogPushForce = Config.Bind("Physics", "LogPushForce", 80f, "Knockback force applied to enemies hit by a log.");
-            ItemPushForce = Config.Bind("Physics", "ItemPushForce", 20f, "Knockback force applied to enemies hit by an item.");
-            ItemDamageCoefficient = Config.Bind("Physics", "ItemDamageCoefficient", 0.05f, "Damage dealt per unit of force for items.");
             GrabRange = Config.Bind("Physics", "GrabRange", 12.0f, "Reach distance.");
             RotationHotkey = Config.Bind("General", "RotationHotkey", new KeyboardShortcut(KeyCode.R), "Toggle rotation mode while holding.");
             PctGrab = Config.Bind("Stamina (%)", "GrabCostPct", 0.12f, "12% of Max Stamina.");
             PctThrow = Config.Bind("Stamina (%)", "ThrowCostPct", 0.15f, "15% of Max Stamina.");
             PctDrainStill = Config.Bind("Stamina (%)", "PassiveDrainPct", 0.005f, "0.5% per sec still.");
             PctDrainMove = Config.Bind("Stamina (%)", "ActiveDrainPct", 0.015f, "1.5% per sec moving.");
+            LogHoldRotationX = Config.Bind("Physics", "LogHoldRotationX", 90f, "X rotation of held log in degrees.");
+            LogHoldRotationZ = Config.Bind("Physics", "LogHoldRotationZ", 0f, "Z rotation of held log in degrees.");
+            LogAoeRadius = Config.Bind("Physics", "LogAoeRadius", 3f, "Radius of AOE damage on log impact.");
+            LogAoeDamageMultiplier = Config.Bind("Physics", "LogAoeDamageMultiplier", 0.5f, "AOE damage as a fraction of direct hit damage.");
         }
         //
         private void SetupSkill()
@@ -116,32 +123,6 @@ namespace LogItemThrower
             return Player.m_localPlayer.GetSkillFactor("Throwing") * 100f;
         }
 
-        void OnGUI()
-        {
-            if (!_showingGrabHint || Player.m_localPlayer == null) return;
-
-            string key = LaunchHotkey.Value.MainKey.ToString();
-            string hint = $"[{key}] Grab";
-
-            GUIStyle style = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 18,
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold
-            };
-            style.normal.textColor = Color.white;
-
-            float w = 200f, h = 30f;
-            float x = (Screen.width - w) / 2f;
-            float y = (Screen.height / 2f) + 40f;
-
-            // Shadow for readability
-            style.normal.textColor = Color.black;
-            GUI.Label(new Rect(x + 1, y + 1, w, h), hint, style);
-            style.normal.textColor = Color.white;
-            GUI.Label(new Rect(x, y, w, h), hint, style);
-        }
-
         void Update()
         {
             Player p = Player.m_localPlayer;
@@ -171,7 +152,7 @@ namespace LogItemThrower
                         _heldRotation;
                 }
 
-                if (Input.GetKeyDown(KeyCode.Escape)) { CancelHold(); return; }
+                if (Input.GetKeyDown(DropHotkey.Value.MainKey)) { CancelHold(); return; }
             }
 
             // Show grab hint if looking at a valid object and not already holding something
@@ -249,12 +230,7 @@ namespace LogItemThrower
             _isHolding = true;
 
             // Set initial rotation to face the camera
-            Camera cam = Utils.GetMainCamera();
-            Vector3 forward = cam.transform.forward;
-            forward.y = 0f;
-            forward.Normalize();
-            _heldRotation = Quaternion.LookRotation(cam.transform.forward) * Quaternion.Euler(90f, 0f, 0f);
-            _rotationMode = false;
+            _heldRotation = Quaternion.identity;
 
             // Claim ownership if it's a networked object to prevent desync
             ZNetView znv = obj.GetComponent<ZNetView>();
@@ -277,11 +253,22 @@ namespace LogItemThrower
 
         void FixedUpdate()
         {
+            // Move held object to the hold position each physics tick
             if (_isHolding && _heldObject != null && _heldRigidbody != null && Player.m_localPlayer != null)
             {
                 Transform pTrans = Player.m_localPlayer.transform;
                 Vector3 holdPos = pTrans.position + (Vector3.up * 2.8f) + (pTrans.right * 1.3f) + (pTrans.forward * 0.4f);
                 _heldRigidbody.MovePosition(holdPos);
+
+                if (_isHeldLog && !_rotationMode)
+                {
+                    Vector3 flatForward = pTrans.forward;
+                    flatForward.y = 0f;
+                    flatForward.Normalize();
+                    _heldRotation = Quaternion.LookRotation(flatForward) *
+                        Quaternion.Euler(LogHoldRotationX.Value, 0f, LogHoldRotationZ.Value);
+                }
+
                 _heldRigidbody.MoveRotation(_heldRotation);
             }
         }
@@ -299,7 +286,7 @@ namespace LogItemThrower
                     p.RaiseSkill("Throwing", isLog ? 1.0f : 0.2f);
                 Launch(isLog);
             }
-            else { p.Message(MessageHud.MessageType.TopLeft, "Too tired! Recover stamina or press Escape to drop."); }
+            else { p.Message(MessageHud.MessageType.TopLeft, $"Too tired! Recover stamina or press [{DropHotkey.Value.MainKey}] to drop."); }
         }
 
         private void Launch(bool isLog)
@@ -332,11 +319,15 @@ namespace LogItemThrower
             }
 
             float strengthMultiplier = 1f + (strength * StrengthCoefficient.Value);
-            float finalForce = (isLog ? LogForce.Value : ItemForce.Value) * skillBonus * strengthMultiplier;
+            float baseForce = isLog ? LogForce.Value : ItemForce.Value;
+            float massScale = isLog ? 1f : Mathf.Clamp(_originalMass, 0.5f, 5f);
+            float finalForce = baseForce * massScale * skillBonus * strengthMultiplier;
 
-            var proj = _heldObject.AddComponent<ThrownProjectile>();
-            proj.damage = finalForce * (isLog ? LogDamageCoefficient.Value : ItemDamageCoefficient.Value);
-            proj.isLog = isLog;
+            if (isLog)
+            {
+                var proj = _heldObject.AddComponent<ThrownProjectile>();
+                proj.damage = finalForce * LogDamageCoefficient.Value;
+            }
 
             _heldObject.transform.position = Player.m_localPlayer.transform.position + (Player.m_localPlayer.transform.forward * 2.2f) + (Vector3.up * 1.8f);
 
@@ -354,7 +345,7 @@ namespace LogItemThrower
                 launchDir = cam.transform.forward;
 
             if (_throwSoundPrefab == null)
-                _throwSoundPrefab = ZNetScene.instance?.GetPrefab("sfx_swing_axe");
+                _throwSoundPrefab = ZNetScene.instance?.GetPrefab("sfx_warrior_attack");
             if (_throwSoundPrefab != null)
                 Instantiate(_throwSoundPrefab, _heldObject.transform.position, Quaternion.identity);
 

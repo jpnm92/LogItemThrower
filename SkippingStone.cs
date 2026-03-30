@@ -28,7 +28,8 @@ namespace LogItemThrower
                 if (rb.linearVelocity.magnitude > 5f)
                 {
                     Vector3 currentVel = rb.linearVelocity;
-                    rb.linearVelocity = new Vector3(currentVel.x, Mathf.Abs(currentVel.y) * 0.8f + 5f, currentVel.z);
+                    float bounceY = Mathf.Min(Mathf.Abs(currentVel.y) * 0.5f + 2f, 8f);
+                    rb.linearVelocity = new Vector3(currentVel.x, bounceY, currentVel.z);
                     rb.AddForce(transform.forward * 2f, ForceMode.VelocityChange);
 
                     skipsRemaining--;
