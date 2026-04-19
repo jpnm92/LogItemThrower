@@ -10,8 +10,22 @@ namespace LogItemThrower
             if (Player.m_localPlayer == null) return "";
             float dist = Vector3.Distance(Player.m_localPlayer.transform.position, transform.position);
             if (dist > LogItemThrower.GrabRange.Value) return "";
+
+            // Chain any pre-existing Hoverable on this object so health/damage text is preserved
+            string existingText = "";
+            foreach (MonoBehaviour component in GetComponents<MonoBehaviour>())
+            {
+                if (component == this) continue;
+                if (component is Hoverable hoverable)
+                {
+                    string text = hoverable.GetHoverText();
+                    if (!string.IsNullOrEmpty(text)) { existingText = text; break; }
+                }
+            }
+
             string key = LogItemThrower.LaunchHotkey.Value.MainKey.ToString();
-            return $"Log\n[<color=yellow>{key}</color>] Grab";
+            string grabLine = $"[<color=yellow>{key}</color>] Grab";
+            return string.IsNullOrEmpty(existingText) ? $"Log\n{grabLine}" : $"{existingText}\n{grabLine}";
         }
 
         public string GetHoverName() => "Log";

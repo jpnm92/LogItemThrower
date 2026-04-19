@@ -14,7 +14,7 @@
 
     <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
         <ValheimManagedPath>D:\SteamLibrary\steamapps\common\Valheim\valheim_Data\Managed\</ValheimManagedPath>
-        <BepInCorePath>C:\Users\JPNM9\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Default\BepInEx\core\</BepInCorePath>
+        <BepInCorePath>C:\Users\JPNM9\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Default\BepInEx\core</BepInCorePath>
         <R2ProfileDir>C:\Users\JPNM9\AppData\Roaming\r2modmanPlus-local\Valheim\profiles\Default\BepInEx\plugins\</R2ProfileDir>
     </PropertyGroup>
 
@@ -40,7 +40,7 @@
 
     <ItemGroup>
         <Reference Include="0Harmony">
-            <HintPath>$(BepInCorePath)0Harmony.dll</HintPath>
+            <HintPath>$(BepInCorePath)\0Harmony.dll</HintPath>
         </Reference>
         <Reference Include="assembly_guiutils">
             <HintPath>$(ValheimManagedPath)assembly_guiutils.dll</HintPath>
@@ -52,7 +52,7 @@
             <HintPath>$(ValheimManagedPath)assembly_utils.dll</HintPath>
         </Reference>
         <Reference Include="BepInEx">
-            <HintPath>$(BepInCorePath)BepInEx.dll</HintPath>
+            <HintPath>$(BepInCorePath)\BepInEx.dll</HintPath>
         </Reference>
         <Reference Include="Splatform">
             <HintPath>$(ValheimManagedPath)Splatform.dll</HintPath>
@@ -90,14 +90,14 @@
         </Reference>
     </ItemGroup>
 
-    <Target Name="ILRepacker" AfterTargets="Build">
+    <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
         <Message Importance="High" Text="Embedding SkillManager and ServerSync into LogItemThrower.dll..." />
         <ItemGroup>
             <InputAssemblies Include="$(TargetPath)" />
             <InputAssemblies Include="$(ProjectDir)libs\SkillManager.dll" />
             <InputAssemblies Include="$(ProjectDir)libs\ServerSync.dll" />
         </ItemGroup>
-        <ILRepack Parallel="true" DebugInfo="true" Internalize="true" InputAssemblies="@(InputAssemblies)" OutputFile="$(TargetPath)" TargetKind="SameAsPrimaryAssembly" LibraryPath="$(OutputPath)" />
+        <ILRepack Parallel="true" DebugInfo="true" Internalize="true" InputAssemblies="@(InputAssemblies)" OutputFile="$(TargetPath)" TargetKind="SameAsPrimaryAssembly" LibraryPath="$(OutputPath);$(ProjectDir)libs;$(BepInCorePath);$(ValheimManagedPath)" />
     </Target>
 
     <Target Name="InstallToR2" AfterTargets="ILRepacker" Condition="Exists('$(R2ProfileDir)')">

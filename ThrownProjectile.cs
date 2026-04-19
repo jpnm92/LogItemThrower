@@ -4,6 +4,9 @@ namespace LogItemThrower
 {
     public class ThrownProjectile : MonoBehaviour
     {
+        private static readonly BepInEx.Logging.ManualLogSource _log =
+            BepInEx.Logging.Logger.CreateLogSource("LogItemThrower");
+
         public float damage;
         private Rigidbody rb;
         private bool _hasHit = false;
@@ -16,29 +19,40 @@ namespace LogItemThrower
             Destroy(this, 10f);
         }
 
-        void OnCollisionEnter(Collision collision)
+        void FixedUpdate()
         {
-            if (_hasHit) return;
+            if (_hasHit || rb == null) return;
 
-            Character character = collision.gameObject.GetComponentInParent<Character>();
-            if (character == null || character == Player.m_localPlayer) return;
+            // Manual sweep — not dependent on layer collision matrix
+            Collider[] hits = Physics.OverlapSphere(transform.position, 0.8f);
+            foreach (var col in hits)
+            {
+                Character character = col.GetComponentInParent<Character>();
+                if (character == null || character == Player.m_localPlayer) continue;
 
-            _hasHit = true;
+                _hasHit = true;
 
-            HitData hit = new HitData();
-            hit.m_damage.m_blunt = damage;
-            hit.m_point = collision.contacts[0].point;
-            hit.m_dir = rb != null ? rb.linearVelocity.normalized : transform.forward;
-            hit.m_skill = Skills.SkillType.Clubs;
-            hit.m_pushForce = LogItemThrower.LogPushForce.Value;
-            hit.m_attacker = Player.m_localPlayer.GetZDOID();
-            character.Damage(hit);
+                HitData hit = new HitData();
+                hit.m_damage.m_blunt = damage;
+                hit.m_point = col.ClosestPoint(transform.position);
+                hit.m_dir = rb.linearVelocity.normalized;
+                hit.m_skill = Skills.SkillType.Clubs;
+                hit.m_pushForce = LogItemThrower.LogPushForce.Value;
+                hit.m_attacker = Player.m_localPlayer.GetZDOID();
+                character.Damage(hit);
 
-            if (_hitVfxPrefab != null)
-                Instantiate(_hitVfxPrefab, collision.contacts[0].point, Quaternion.identity);
+                _log.LogInfo($"Hit {character.name} for {hit.m_damage.m_blunt}");
 
-            ApplyAoe(collision.contacts[0].point, damage, character);
-            Destroy(this);
+                if (DamageText.instance != null)
+                    DamageText.instance.ShowText(DamageText.TextType.Normal, hit.m_point, hit.m_damage.m_blunt, false);
+
+                if (_hitVfxPrefab != null)
+                    Instantiate(_hitVfxPrefab, hit.m_point, Quaternion.identity);
+
+                ApplyAoe(hit.m_point, damage, character);
+                Destroy(this);
+                return;
+            }
         }
 
         private void ApplyAoe(Vector3 point, float directDamage, Character directHit)
@@ -60,6 +74,8 @@ namespace LogItemThrower
                 aoeHit.m_attacker = Player.m_localPlayer.GetZDOID();
                 aoeTarget.Damage(aoeHit);
 
+                if (DamageText.instance != null)
+                    DamageText.instance.ShowText(DamageText.TextType.Normal, aoeHit.m_point, aoeHit.m_damage.m_blunt, false);
                 if (_hitVfxPrefab != null)
                     Instantiate(_hitVfxPrefab, point, Quaternion.identity);
             }
